@@ -23,7 +23,7 @@ import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.util.*;
 
-public class GitSSHPrivateKeyBinding extends MultiBinding<SSHUserPrivateKey> implements GitCredentialBindings {
+public class GitSSHPrivateKeyBinding extends MultiBinding<SSHUserPrivateKey> implements GitCredentialBindings, SSHKeyUtils {
     final static private String PRIVATE_KEY_VALUE = "PRIVATE_KEY";
     final static private String PASSPHRASE_VALUE = "PASSPHRASE";
     static private PemObject PEM;
@@ -63,7 +63,7 @@ public class GitSSHPrivateKeyBinding extends MultiBinding<SSHUserPrivateKey> imp
     }
 
     @Override
-    public Set<String> variables() {
+    public Set<String> variables(Run<?,?> run) {
         Set<String> keys = new LinkedHashSet<>();
         keys.add(PRIVATE_KEY_VALUE);
         keys.add(PASSPHRASE_VALUE);

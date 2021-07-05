@@ -1,12 +1,6 @@
 package org.jenkinsci.plugins.gitclient;
 
-import edu.umd.cs.findbugs.annotations.NonNull;
-import hudson.FilePath;
 import org.bouncycastle.util.io.pem.PemObject;
-import org.bouncycastle.util.io.pem.PemWriter;
-import sun.security.util.Pem;
-
-import java.io.*;
 import java.util.Base64;
 
 public class OpenSSHKeyImpl {
@@ -21,8 +15,8 @@ public class OpenSSHKeyImpl {
         this.passphrase = passphrase;
     }
 
-    public boolean isOpenSSHFormat() {
-        return this.keyValue.regionMatches(false, 0, HEADER, 0, HEADER.length());
+    public static boolean isOpenSSHFormat(String keyValue) {
+        return keyValue.regionMatches(false, 0, HEADER, 0, HEADER.length());
     }
 
     /*package*/byte[] decodeOpenSSHKey() {
