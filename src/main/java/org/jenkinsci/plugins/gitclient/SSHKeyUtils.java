@@ -21,26 +21,28 @@ public interface SSHKeyUtils {
         return Secret.toString(credentials.getPassphrase());
     }
 
-    static FilePath getDecodedPrivateKey(SSHUserPrivateKey credentials, FilePath workspace) throws IOException, InterruptedException, IOException {
+    static FilePath getDecodedPrivateKey(SSHUserPrivateKey credentials, FilePath workspace) throws InterruptedException, IOException {
         FilePath tempKeyFile = workspace.createTempFile("private",".key");
-        tempKeyFile.write(convertTOPEM(getPrivateKey(credentials),getPassphrase(credentials)),null);
+        convertTOPEM(tempKeyFile,getPrivateKey(credentials),getPassphrase(credentials));
         tempKeyFile.chmod(0500);
         return tempKeyFile;
     }
 
-    static String convertTOPEM(String privateKey,String passphrase) throws IOException {
+    static FilePath convertTOPEM(FilePath tempFile, String privateKey,String passphrase) throws IOException {
         try {
-            if(OpenSSHKeyImpl.isOpenSSHFormat(privateKey)){
-                OpenSSHKeyImpl opensSSH = new OpenSSHKeyImpl(privateKey,passphrase);
-                return null;
+            if(!OpenSSHKeyImpl.isOpenSSHFormat(privateKey)) {
+                //Will write PEM data, if the key is encoded or not
+                tempFile.write(PEMEncodable.decode(privateKey, passphrase.toCharArray()).encode(),null);
+                return tempFile;
             }
-            else{
-                return PEMEncodable.decode(privateKey,passphrase.toCharArray()).encode();
+            else if(OpenSSHKeyImpl.isOpenSSHFormat(privateKey)){
+                OpenSSHKeyImpl openSSHKey = new OpenSSHKeyImpl(privateKey,passphrase);
+                return openSSHKey.writeOpenSSHPEMFormattedKey(tempFile);
             }
         }
-        catch (UnrecoverableKeyException e) {
+        catch (UnrecoverableKeyException | InterruptedException e) {
             e.printStackTrace();
-            return null;
         }
+        return null;
     }
 }
