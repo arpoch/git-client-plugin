@@ -37,11 +37,6 @@ public class GitSSHPrivateKeyBinding extends MultiBinding<SSHUserPrivateKey> imp
     }
 
     @Override
-    protected Class<SSHUserPrivateKey> type() {
-        return SSHUserPrivateKey.class;
-    }
-
-    @Override
     public MultiEnvironment bind(@NonNull Run<?, ?> run, @Nullable FilePath filePath,
                                  @Nullable Launcher launcher, @NonNull TaskListener taskListener) throws IOException, InterruptedException {
         SSHUserPrivateKey credentials = getCredentials(run);
@@ -50,12 +45,7 @@ public class GitSSHPrivateKeyBinding extends MultiBinding<SSHUserPrivateKey> imp
         if (gitTool != null && filePath != null) {
             final UnbindableDir unbindTempDir = UnbindableDir.create(filePath);
             setRunEnvironmentVariables(filePath, taskListener);
-            OpenSSHKeyImpl opensSSH = new OpenSSHKeyImpl(getPrivateKey(credentials),getPassphrase(credentials));
-            PEM = opensSSH.getPEMObject();
-            GenerateSSHScript sshEcho = new GenerateSSHScript(getPrivateKey(credentials),getPassphrase(credentials),
-                                                getCredentialsId(),PEM);
-            FilePath sshTempFile = sshEcho.write(credentials,unbindTempDir.getDirPath());
-            //credMap.put("",);
+            putGitSSHEnvironmentVariable(credentials, unbindTempDir.getDirPath(),taskListener);
             return new MultiEnvironment(credMap, unbindTempDir.getUnbinder());
         } else {
             return new MultiEnvironment(credMap);
@@ -63,7 +53,7 @@ public class GitSSHPrivateKeyBinding extends MultiBinding<SSHUserPrivateKey> imp
     }
 
     @Override
-    public Set<String> variables(Run<?,?> run) {
+    public Set<String> variables(@NonNull  Run<?,?> run) {
         Set<String> keys = new LinkedHashSet<>();
         keys.add(PRIVATE_KEY_VALUE);
         keys.add(PASSPHRASE_VALUE);
@@ -89,40 +79,72 @@ public class GitSSHPrivateKeyBinding extends MultiBinding<SSHUserPrivateKey> imp
     }
 
     @Override
+    protected Class<SSHUserPrivateKey> type() {
+        return SSHUserPrivateKey.class;
+    }
+
+    private void putGitSSHEnvironmentVariable(SSHUserPrivateKey credentials, FilePath workspace, TaskListener listener) throws IOException, InterruptedException {
+        if(getGitClientInstance(listener).compareLeastGitVersion(2,3,0,0)){
+            if(Functions.isWindows()){
+                credMap.put("GIT_SSH_COMMAND","\"" + getSSHExePath(listener) + "\" -i " + "\"" +
+                        SSHKeyUtils.getDecodedPrivateKey(credentials,workspace).getRemote() + "\" -o StrictHostKeyChecking=no");
+            }
+            else {
+                credMap.put("GIT_SSH_COMMAND","ssh -i "+ "\"" +
+                        SSHKeyUtils.getDecodedPrivateKey(credentials,workspace).getRemote() + "\" -o StrictHostKeyChecking=no $@");
+            }
+        }else {
+            GenerateSSHScript sshScript = new GenerateSSHScript(credentials,getSSHExePath(listener));
+            FilePath tempScript = sshScript.write(credentials,workspace);
+            credMap.put("GIT_SSH",tempScript.getRemote());
+        }
+    }
+
+    @Override
     public GitClient getGitClientInstance(TaskListener listener) throws IOException, InterruptedException {
         Git gitInstance = Git.with(listener, new EnvVars()).using(gitTool);
         return gitInstance.getClient();
     }
 
-    static private String getPrivateKey(SSHUserPrivateKey credentials) {
-        return credentials.getPrivateKeys().get(0);
-    }
-
-    static private String getPassphrase(SSHUserPrivateKey credentials) {
-      return Secret.toString(credentials.getPassphrase());
+    @Override
+    public String getSSHExePath(TaskListener listener) throws IOException, InterruptedException {
+        return (((CliGitAPIImpl) getGitClientInstance(listener)).getSSHExecutable()).getAbsolutePath();
     }
 
     protected static final class GenerateSSHScript extends AbstractOnDiskBinding<SSHUserPrivateKey> {
 
         private final String privateKeyVariable;
         private final String passphraseVariable;
-        private final PemObject pemObj;
+        private final String sshExePath;
 
-        protected GenerateSSHScript(String privateKeyVariable, String passphraseVariable, String credentialsId,PemObject pem) {
-            super(privateKeyVariable+":"+passphraseVariable, credentialsId);
-            this.privateKeyVariable = privateKeyVariable;
-            this.passphraseVariable = passphraseVariable;
-            this.pemObj = pem;
+        protected GenerateSSHScript(SSHUserPrivateKey credentials,String sshExePath) {
+            super(SSHKeyUtils.getPrivateKey(credentials)+":"+SSHKeyUtils.getPassphrase(credentials), credentials.getId());
+            this.privateKeyVariable = SSHKeyUtils.getPrivateKey(credentials);
+            this.passphraseVariable = SSHKeyUtils.getPassphrase(credentials);
+            this.sshExePath = sshExePath;
         }
 
         @Override
         protected FilePath write(SSHUserPrivateKey credentials, FilePath workspace) throws IOException, InterruptedException {
-            FilePath tempFile  = workspace.createTempFile("private",".key");
-            PemWriter tempPEMWrite = new PemWriter(new OutputStreamWriter(new FileOutputStream
-                    (new File(tempFile.toURI()))));
-            tempPEMWrite.writeObject(pemObj);
-            tempPEMWrite.close();
-            tempFile.chmod(0500);
+            FilePath tempFile;
+            if(Functions.isWindows()){
+                tempFile = workspace.createTempFile("gitSSHScript",".bat");
+                tempFile.write("@echo off\r\n"
+                                + "\""
+                                + this.sshExePath
+                                + "\""
+                                + " -i "
+                                + "\""
+                                + SSHKeyUtils.getDecodedPrivateKey(credentials,workspace).getRemote()
+                                + "\""
+                                + " -o StrictHostKeyChecking=no" , null);
+            }else {
+                tempFile = workspace.createTempFile("gitSSHScript",".sh");
+                tempFile.write("ssh -i "
+                                + SSHKeyUtils.getDecodedPrivateKey(credentials,workspace).getRemote()
+                                +" -o StrictHostKeyChecking=no $@",null);
+                tempFile.chmod(0500);
+            }
             return tempFile;
         }
 
