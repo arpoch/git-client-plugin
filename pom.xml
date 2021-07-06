@@ -220,6 +220,12 @@
       <groupId>org.jenkins-ci.plugins</groupId>
       <artifactId>bouncycastle-api</artifactId>
     </dependency>
+    <!-- SSHJ library -->
+    <dependency>
+    <groupId>com.hierynomus</groupId>
+    <artifactId>sshj</artifactId>
+    <version>0.31.0</version>
+  </dependency>
     <dependency>
       <groupId>org.jenkins-ci.plugins</groupId>
       <artifactId>structs</artifactId>
