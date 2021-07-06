@@ -53,8 +53,6 @@ public interface GitCredentialBindings {
                         if (tool.getType().clazz.equals(GitTool.class)) {
                             //Check for properties
                             GitTool gitTool = new GitTool(tool.getName(), tool.getHome(), null);
-                            //node specific git home for git tool
-                            gitTool = gitTool.forNode(currentNode, listener);
                             return gitTool.getGitExe();
                         }
                     }
