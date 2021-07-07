@@ -2,11 +2,18 @@ package org.jenkinsci.plugins.gitclient;
 
 import com.hierynomus.sshj.userauth.keyprovider.OpenSSHKeyV1KeyFile;
 import hudson.FilePath;
+import net.schmizz.sshj.userauth.password.PasswordFinder;
+import net.schmizz.sshj.userauth.password.Resource;
+import org.bouncycastle.crypto.CipherParameters;
+import org.bouncycastle.crypto.params.AsymmetricKeyParameter;
+import org.bouncycastle.crypto.util.OpenSSHPrivateKeyUtil;
 import org.bouncycastle.util.io.pem.PemObject;
 import org.bouncycastle.util.io.pem.PemWriter;
 
 import java.io.*;
 import java.security.PrivateKey;
+
+import static org.bouncycastle.crypto.util.OpenSSHPrivateKeyUtil.parsePrivateKeyBlob;
 
 public class OpenSSHKeyImpl {
 
@@ -41,7 +48,7 @@ public class OpenSSHKeyImpl {
 
     PrivateKey getOpenSSHKeyPair() throws IOException {
         OpenSSHKeyV1KeyFile o = new OpenSSHKeyV1KeyFile();
-        o.init(this.keyValue,"");
+        o.init(this.keyValue,"", new PassphraseFinder(this.passphrase));
         return o.getPrivate();
     }
 
@@ -51,5 +58,24 @@ public class OpenSSHKeyImpl {
         pemWriter.writeObject(pemObj);
         pemWriter.close();
         return tempFile;
+    }
+
+    protected static final class PassphraseFinder implements PasswordFinder {
+
+        private final String passphrase;
+
+        public PassphraseFinder(String passphrase){
+            this.passphrase=passphrase;
+        }
+
+        @Override
+        public char[] reqPassword(Resource<?> resource) {
+            return this.passphrase.toCharArray();
+        }
+
+        @Override
+        public boolean shouldRetry(Resource<?> resource) {
+            return false;
+        }
     }
 }
