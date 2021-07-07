@@ -26,7 +26,6 @@ import java.util.*;
 public class GitSSHPrivateKeyBinding extends MultiBinding<SSHUserPrivateKey> implements GitCredentialBindings, SSHKeyUtils {
     final static private String PRIVATE_KEY_VALUE = "PRIVATE_KEY";
     final static private String PASSPHRASE_VALUE = "PASSPHRASE";
-    static private PemObject PEM;
     private final Map<String, String> credMap = new LinkedHashMap<>();
     private String gitTool = null;
 
@@ -84,7 +83,7 @@ public class GitSSHPrivateKeyBinding extends MultiBinding<SSHUserPrivateKey> imp
     }
 
     private void putGitSSHEnvironmentVariable(SSHUserPrivateKey credentials, FilePath workspace, TaskListener listener) throws IOException, InterruptedException {
-        if(getGitClientInstance(listener).compareLeastGitVersion(2,3,0,0)){
+        if(((CliGitAPIImpl) getGitClientInstance(listener)).isAtLeastVersion(2,3,0,0)){
             if(Functions.isWindows()){
                 credMap.put("GIT_SSH_COMMAND","\"" + getSSHExePath(listener) + "\" -i " + "\"" +
                         SSHKeyUtils.getDecodedPrivateKey(credentials,workspace).getRemote() + "\" -o StrictHostKeyChecking=no");
