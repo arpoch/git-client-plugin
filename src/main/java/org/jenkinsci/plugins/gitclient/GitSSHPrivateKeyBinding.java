@@ -7,6 +7,8 @@ import hudson.*;
 import hudson.model.Run;
 import hudson.model.TaskListener;
 import hudson.util.Secret;
+import org.bouncycastle.crypto.params.AsymmetricKeyParameter;
+import org.bouncycastle.crypto.util.OpenSSHPrivateKeyUtil;
 import org.bouncycastle.util.io.pem.PemObject;
 import org.bouncycastle.util.io.pem.PemWriter;
 import org.jenkinsci.Symbol;
@@ -85,8 +87,18 @@ public class GitSSHPrivateKeyBinding extends MultiBinding<SSHUserPrivateKey> imp
     private void putGitSSHEnvironmentVariable(SSHUserPrivateKey credentials, FilePath workspace, TaskListener listener) throws IOException, InterruptedException {
         if(((CliGitAPIImpl) getGitClientInstance(listener)).isAtLeastVersion(2,3,0,0)){
             if(Functions.isWindows()){
+//                credMap.put("GIT_SSH_COMMAND","\"" + getSSHExePath(listener) + "\" -i " + "\"" +
+//                        SSHKeyUtils.getDecodedPrivateKey(credentials,workspace).getRemote() + "\" -o StrictHostKeyChecking=no");
+                AsymmetricKeyParameter s = OpenSSHPrivateKeyUtil.parsePrivateKeyBlob(credentials.getPrivateKeys().get(0).getBytes());
+                byte[] c = OpenSSHPrivateKeyUtil.encodePrivateKey(s);
+                PemObject o = new PemObject("OPENSSH PRIVATE KEY",c);
+                FilePath f = workspace.createTempFile("auth",".key");
+                PemWriter w = new PemWriter(new OutputStreamWriter(new FileOutputStream(new File(f.toURI()))));
+                w.writeObject(o);
+                w.close();
+                f.chmod(0500);
                 credMap.put("GIT_SSH_COMMAND","\"" + getSSHExePath(listener) + "\" -i " + "\"" +
-                        SSHKeyUtils.getDecodedPrivateKey(credentials,workspace).getRemote() + "\" -o StrictHostKeyChecking=no");
+                    f.getRemote() + "\" -o StrictHostKeyChecking=no");
             }
             else {
                 credMap.put("GIT_SSH_COMMAND","ssh -i "+ "\"" +
@@ -160,7 +172,7 @@ public class GitSSHPrivateKeyBinding extends MultiBinding<SSHUserPrivateKey> imp
         @NonNull
         @Override
         public String getDisplayName() {
-            return Messages.GitSSHPrivateKeyBind_DisplayName();
+            return Messages.GitSSHPrivateKeyBinding_DisplayName();
         }
 
         @Override
