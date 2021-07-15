@@ -4,20 +4,17 @@ import com.hierynomus.sshj.userauth.keyprovider.OpenSSHKeyV1KeyFile;
 import hudson.FilePath;
 import net.schmizz.sshj.userauth.password.PasswordFinder;
 import net.schmizz.sshj.userauth.password.Resource;
-import org.bouncycastle.crypto.CipherParameters;
-import org.bouncycastle.crypto.params.AsymmetricKeyParameter;
-import org.bouncycastle.crypto.util.OpenSSHPrivateKeyUtil;
 import org.bouncycastle.util.io.pem.PemObject;
 import org.bouncycastle.util.io.pem.PemWriter;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.security.PrivateKey;
-
-import static org.bouncycastle.crypto.util.OpenSSHPrivateKeyUtil.parsePrivateKeyBlob;
 
 public class OpenSSHKeyImpl {
 
-    private final static byte[] AUTH_MAGIC = "openssh-key-v1\0".getBytes();
+    //TODO Remove if no use found
+    private final static byte[] AUTH_MAGIC = "openssh-key-v1\0".getBytes(StandardCharsets.UTF_8);
     private final static String HEADER = "-----BEGIN OPENSSH PRIVATE KEY-----";
     private String keyValue;
     private String passphrase;
@@ -31,10 +28,16 @@ public class OpenSSHKeyImpl {
         return keyValue.regionMatches(false, 0, HEADER, 0, HEADER.length());
     }
 
+    PrivateKey getOpenSSHKeyPair() throws IOException {
+        OpenSSHKeyV1KeyFile o = new OpenSSHKeyV1KeyFile();
+        o.init(this.keyValue,"", new PassphraseFinder(this.passphrase));
+        return o.getPrivate();
+    }
+
     private PemObject getPEMObject() throws IOException {
         byte[] content;
         if (passphrase.isEmpty()) {
-            content = this.keyValue.getBytes();
+            content = this.keyValue.getBytes(StandardCharsets.UTF_8);
         } else {
             PrivateKey privateKey = getOpenSSHKeyPair();
             content = privateKey.getEncoded();
@@ -43,13 +46,7 @@ public class OpenSSHKeyImpl {
     }
 
     private PemWriter getPEMWriter(FilePath tempFile) throws IOException, InterruptedException {
-        return new PemWriter(new FileWriter(new File(tempFile.toURI())));
-    }
-
-    PrivateKey getOpenSSHKeyPair() throws IOException {
-        OpenSSHKeyV1KeyFile o = new OpenSSHKeyV1KeyFile();
-        o.init(this.keyValue,"", new PassphraseFinder(this.passphrase));
-        return o.getPrivate();
+        return new PemWriter(new OutputStreamWriter( new FileOutputStream(new File(tempFile.toURI())),StandardCharsets.UTF_8));
     }
 
     FilePath writeOpenSSHPEMFormattedKey(FilePath tempFile) throws IOException, InterruptedException {
